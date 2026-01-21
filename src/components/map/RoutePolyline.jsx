@@ -15,23 +15,18 @@ if (typeof window !== 'undefined') {
  * Component to render route polyline on the map
  */
 export default function RoutePolyline({ geometry, color = '#0ea5e9' }) {
-  if (typeof window === 'undefined' || !useMap || !L) return null
-  
   const map = useMap()
   const polylineRef = React.useRef(null)
 
   React.useEffect(() => {
-    if (!geometry || !geometry.coordinates || !map) return
+    if (!geometry || !geometry.coordinates || !map || !L) return
 
-    // Remove existing polyline
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current)
     }
 
-    // Convert coordinates from [lng, lat] to [lat, lng] for Leaflet
     const coordinates = geometry.coordinates.map(coord => [coord[1], coord[0]])
     
-    // Create polyline
     const polyline = L.polyline(coordinates, {
       color: color,
       weight: 5,
@@ -41,14 +36,12 @@ export default function RoutePolyline({ geometry, color = '#0ea5e9' }) {
     
     polyline.addTo(map)
     
-    // Fit map to route bounds
     if (coordinates.length > 0) {
       map.fitBounds(polyline.getBounds(), { padding: [50, 50] })
     }
     
     polylineRef.current = polyline
 
-    // Cleanup
     return () => {
       if (polylineRef.current && map) {
         map.removeLayer(polylineRef.current)
@@ -56,6 +49,10 @@ export default function RoutePolyline({ geometry, color = '#0ea5e9' }) {
       }
     }
   }, [map, geometry, color])
+
+  if (typeof window === 'undefined' || !useMap || !L || !map) {
+    return null
+  }
 
   return null
 }

@@ -10,7 +10,7 @@ import { reverseGeocode } from '@/lib/ors-api/ors-api-client'
 import MapLayerSwitcher from './MapLayerSwitcher'
 
 // Dynamically import Leaflet components to avoid SSR issues
-let MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, L
+let MapContainer, TileLayer, Marker, Popup, useMap, L
 let RoutePolylineComponent
 let IsochronesPolygonComponent
 
@@ -22,7 +22,6 @@ if (typeof window !== 'undefined') {
   Marker = leaflet.Marker
   Popup = leaflet.Popup
   useMap = leaflet.useMap
-  useMapEvents = leaflet.useMapEvents
   
   L = require('leaflet')
   require('leaflet/dist/leaflet.css')
@@ -41,8 +40,6 @@ if (typeof window !== 'undefined') {
 
 // Component to update map view when center/zoom changes and sync map events to store
 function MapUpdater() {
-  if (typeof window === 'undefined' || !useMap || !useMapEvents) return null
-  
   const map = useMap()
   const { mapCenter, zoom, setMapCenter, setZoom, isochroneData } = useMapStore()
   const isUpdatingFromStoreRef = React.useRef(false)
@@ -53,12 +50,12 @@ function MapUpdater() {
   const lastIsochroneDataRef = React.useRef(null)
   
   React.useEffect(() => {
-    // Only fit bounds if isochrones data changed (new calculation) and hasn't been fitted yet
-    if (isochroneData && map && L && 
+    if (!map || !L) return
+
+    if (isochroneData && 
         isochroneData !== lastIsochroneDataRef.current && 
         !hasFittedToIsochronesRef.current) {
       try {
-        // Get all polygon bounds from isochrones
         const bounds = L.latLngBounds([])
         let hasBounds = false
         
@@ -66,11 +63,11 @@ function MapUpdater() {
           isochroneData.features.forEach(feature => {
             const geometry = feature.geometry || feature
             if (geometry.type === 'Polygon' && geometry.coordinates) {
-              const outerRing = geometry.coordinates[0] // First ring is outer boundary
+              const outerRing = geometry.coordinates[0]
               if (outerRing && outerRing.length > 0) {
                 outerRing.forEach(coord => {
                   if (Array.isArray(coord) && coord.length >= 2) {
-                    bounds.extend([coord[1], coord[0]]) // [lat, lng] from [lng, lat]
+                    bounds.extend([coord[1], coord[0]])
                     hasBounds = true
                   }
                 })
@@ -80,7 +77,6 @@ function MapUpdater() {
         }
         
         if (hasBounds && bounds.isValid()) {
-          // Fit bounds only once, then allow user to control map
           setTimeout(() => {
             map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
             hasFittedToIsochronesRef.current = true
@@ -91,7 +87,6 @@ function MapUpdater() {
         console.error('Error fitting bounds to isochrones:', error)
       }
     } else if (!isochroneData) {
-      // Reset flags when isochrones are cleared
       hasFittedToIsochronesRef.current = false
       lastIsochroneDataRef.current = null
     }
@@ -109,7 +104,6 @@ function MapUpdater() {
       if (centerChanged || zoomChanged) {
         isUpdatingFromStoreRef.current = true
         map.setView([mapCenter.lat || 51.505, mapCenter.lng || -0.09], zoom || 6)
-        // Reset flag after map finishes updating
         setTimeout(() => {
           isUpdatingFromStoreRef.current = false
         }, 300)
@@ -118,48 +112,62 @@ function MapUpdater() {
   }, [map, mapCenter, zoom])
 
   // Listen to map pan and zoom events to update store
-  useMapEvents({
-    moveend: () => {
+  React.useEffect(() => {
+    if (!map) return
+
+    const handleMoveEnd = () => {
       if (!isUpdatingFromStoreRef.current) {
         const center = map.getCenter()
         const newCenter = { lat: center.lat, lng: center.lng }
-        // Only update if center actually changed
         if (!mapCenter || 
             Math.abs(center.lat - mapCenter.lat) > 0.0001 || 
             Math.abs(center.lng - mapCenter.lng) > 0.0001) {
           setMapCenter(newCenter)
         }
-        // Reset isochrones fit flag when user moves map
-        hasFittedToIsochronesRef.current = false
-      }
-    },
-    zoomend: () => {
-      if (!isUpdatingFromStoreRef.current) {
-        const currentZoom = map.getZoom()
-        // Only update if zoom actually changed
-        if (zoom === null || Math.abs(currentZoom - zoom) > 0.1) {
-          setZoom(currentZoom)
-        }
-        // Reset isochrones fit flag when user zooms
         hasFittedToIsochronesRef.current = false
       }
     }
-  })
+
+    const handleZoomEnd = () => {
+      if (!isUpdatingFromStoreRef.current) {
+        const currentZoom = map.getZoom()
+        if (zoom === null || Math.abs(currentZoom - zoom) > 0.1) {
+          setZoom(currentZoom)
+        }
+        hasFittedToIsochronesRef.current = false
+      }
+    }
+
+    map.on('moveend', handleMoveEnd)
+    map.on('zoomend', handleZoomEnd)
+
+    return () => {
+      map.off('moveend', handleMoveEnd)
+      map.off('zoomend', handleZoomEnd)
+    }
+  }, [map, mapCenter, zoom, setMapCenter, setZoom])
 
   return null
 }
 
 // Map click handler component - must be separate to avoid hook order issues
 function MapClickHandlerWrapper({ activeInputIndex, handleMapClick }) {
-  if (typeof window === 'undefined' || !useMapEvents) return null
-  
-  useMapEvents({
-    click: (e) => {
+  const map = useMap()
+
+  React.useEffect(() => {
+    if (!map) return
+
+    const handleClick = (e) => {
       if (activeInputIndex !== null) {
         handleMapClick(e)
       }
     }
-  })
+
+    map.on('click', handleClick)
+    return () => {
+      map.off('click', handleClick)
+    }
+  }, [map, activeInputIndex, handleMapClick])
 
   return null
 }
@@ -186,7 +194,10 @@ export default function MapView() {
   } = useMapStore()
 
   // Safety check for places array
-  const safePlaces = Array.isArray(places) ? places : []
+  const safePlaces = React.useMemo(
+    () => (Array.isArray(places) ? places : []),
+    [places]
+  )
 
   // Handle map click to select place - must be defined before conditional return
   const handleMapClick = React.useCallback(async (e) => {
@@ -415,12 +426,10 @@ export default function MapView() {
         />
         
         <MapUpdater />
-        {typeof window !== 'undefined' && useMapEvents && (
-          <MapClickHandlerWrapper 
-            activeInputIndex={activeInputIndex}
-            handleMapClick={handleMapClick}
-          />
-        )}
+        <MapClickHandlerWrapper 
+          activeInputIndex={activeInputIndex}
+          handleMapClick={handleMapClick}
+        />
 
         {/* Render markers for selected places */}
         {safePlaces
@@ -472,4 +481,3 @@ export default function MapView() {
     </div>
   )
 }
-

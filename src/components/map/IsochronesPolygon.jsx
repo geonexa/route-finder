@@ -21,19 +21,17 @@ if (typeof window !== 'undefined') {
 export default function IsochronesPolygon({ feature, index }) {
   const polygonRef = React.useRef(null)
   const map = useMap()
+  const geometry = feature?.geometry || feature
+  const properties = feature?.properties || {}
   
-  if (typeof window === 'undefined' || !Polygon || !feature || !map) {
-    return null
-  }
-
-  // Extract geometry from feature
-  const geometry = feature.geometry || feature
-  const properties = feature.properties || {}
-  
-  // Debug log
   React.useEffect(() => {
+    if (!feature || !geometry || typeof window === 'undefined') return
     console.log('IsochronesPolygon rendering:', { feature, geometry, index })
   }, [feature, geometry, index])
+
+  if (typeof window === 'undefined' || !Polygon || !feature || !map || !geometry) {
+    return null
+  }
 
   // Get polygon coordinates based on geometry type
   // GeoJSON uses [lng, lat] but Leaflet needs [lat, lng]

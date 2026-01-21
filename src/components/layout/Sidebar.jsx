@@ -33,26 +33,27 @@ export default function Sidebar() {
   } = useMapStore()
   
   // Safety checks for arrays
-  const safePlaces = Array.isArray(places) ? places : []
+  const safePlaces = React.useMemo(
+    () => (Array.isArray(places) ? places : []),
+    [places]
+  )
   
   // Initialize sidebar open state on desktop
   React.useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 768 && !sidebarOpen) {
       setSidebarOpen(true)
     }
-  }, [])
+  }, [sidebarOpen, setSidebarOpen])
   
   // Initialize with default 2 fields (start and end) for directions mode
   React.useEffect(() => {
     if (mode === 'directions') {
-      // Always ensure at least 2 fields (start and end)
       if (safePlaces.length === 0) {
         setPlaces([
           { name: '', lat: null, lng: null },
           { name: '', lat: null, lng: null }
         ])
       } else if (safePlaces.length === 1) {
-        // If only one field, add end field
         setPlaces([
           ...safePlaces,
           { name: '', lat: null, lng: null }
@@ -61,7 +62,7 @@ export default function Sidebar() {
     } else if (safePlaces.length === 0 && mode === 'place') {
       setPlaces([{ name: '', lat: null, lng: null }])
     }
-  }, [mode])
+  }, [mode, safePlaces, setPlaces])
 
   const handlePlaceSelect = (placeData, index) => {
     const newPlaces = [...safePlaces]

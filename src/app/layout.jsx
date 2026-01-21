@@ -22,7 +22,7 @@ export const metadata = {
   authors: [{ name: 'GeoNexa', url: 'https://github.com/geonexa' }],
   creator: 'GeoNexa',
   publisher: 'GeoNexa',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  // metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   icons: {
     icon: [
       { url: '/favicon.ico', type: 'image/x-icon' },
@@ -50,12 +50,7 @@ export const metadata = {
       },
     ],
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'OpenRouteService Maps - Route Planning & Travel Time Analysis',
-    description: 'Free, open-source interactive map client for route planning, directions, and isochrones.',
-    images: ['/og-image.png'],
-  },
+
   robots: {
     index: true,
     follow: true,

@@ -39,9 +39,7 @@ export default function PlaceInput({
 
   // Update local state when value prop changes
   React.useEffect(() => {
-    if (value !== searchTerm) {
-      setSearchTerm(value || '')
-    }
+    setSearchTerm(value || '')
   }, [value])
 
   // Track if a place is selected
@@ -259,7 +257,7 @@ export default function PlaceInput({
         clearActiveInputIndex()
       }
     }
-  }, [])
+  }, [activeInputIndex, clearActiveInputIndex, index])
 
   const handleBlur = () => {
     // Delay to allow click on suggestion
@@ -273,7 +271,7 @@ export default function PlaceInput({
     if (value && value.trim().length >= 2 && suggestions.length === 0) {
       handleSearch(value)
     }
-  }, [value])
+  }, [value, suggestions.length, handleSearch])
 
   return (
     <div className={cn('relative', className)}>
