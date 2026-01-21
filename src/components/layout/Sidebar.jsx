@@ -37,13 +37,20 @@ export default function Sidebar() {
     () => (Array.isArray(places) ? places : []),
     [places]
   )
+  const isIsoMode = mode === 'isochrones'
+  const placesToRender = React.useMemo(() => {
+    if (isIsoMode) {
+      return safePlaces.length ? [safePlaces[0]] : []
+    }
+    return safePlaces
+  }, [isIsoMode, safePlaces])
   
   // Initialize sidebar open state on desktop
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768 && !sidebarOpen) {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
       setSidebarOpen(true)
     }
-  }, [sidebarOpen, setSidebarOpen])
+  }, [setSidebarOpen])
   
   // Initialize with default 2 fields (start and end) for directions mode
   React.useEffect(() => {
@@ -59,8 +66,12 @@ export default function Sidebar() {
           { name: '', lat: null, lng: null }
         ])
       }
-    } else if (safePlaces.length === 0 && mode === 'place') {
-      setPlaces([{ name: '', lat: null, lng: null }])
+    } else {
+      if (safePlaces.length === 0) {
+        setPlaces([{ name: '', lat: null, lng: null }])
+      } else if (safePlaces.length > 1) {
+        setPlaces([safePlaces[0]])
+      }
     }
   }, [mode, safePlaces, setPlaces])
 
@@ -222,50 +233,81 @@ export default function Sidebar() {
           }}
         >
           <div className="space-y-3">
-            {safePlaces.map((place, index) => {
-              const isStart = index === 0
-              const isEnd = index === safePlaces.length - 1
-              const isVia = !isStart && !isEnd
-              
+            {placesToRender.map((place, index) => {
+              const isStart = index === 0 && !isIsoMode
+              const isEnd = index === placesToRender.length - 1 && !isIsoMode && placesToRender.length > 1
+              const isVia = !isIsoMode && !isStart && !isEnd
+              const containerStatusClass = isIsoMode
+                ? "border-primary-200 bg-primary-50/30"
+                : isStart
+                  ? "border-green-200 bg-green-50/30"
+                  : isEnd
+                    ? "border-red-200 bg-red-50/30"
+                    : "border-blue-200 bg-blue-50/30"
+              const iconBgClass = isIsoMode
+                ? "bg-primary-500 text-white"
+                : isStart
+                  ? "bg-green-500 text-white"
+                  : isEnd
+                    ? "bg-red-500 text-white"
+                    : "bg-blue-500 text-white"
+              const headerLabel = isIsoMode
+                ? 'Zone location'
+                : isStart
+                  ? 'Start'
+                  : isEnd
+                    ? 'End'
+                    : `Via ${index}`
+              const headerTextClass = isIsoMode
+                ? 'text-primary-700'
+                : isStart
+                  ? 'text-green-700'
+                  : isEnd
+                    ? 'text-red-700'
+                    : 'text-blue-700'
+              const placeholderText = isIsoMode
+                ? 'Zone location'
+                : isStart
+                  ? 'Start location'
+                  : isEnd
+                    ? 'End location'
+                    : `Via point ${index}`
+              const iconContent = isIsoMode
+                ? <MapPin className="h-3 w-3" />
+                : isStart
+                  ? <Play className="h-3 w-3" />
+                  : isEnd
+                    ? <Square className="h-3 w-3" />
+                    : index
               return (
                 <div 
                   key={index} 
                   className={cn(
-                    "relative group rounded-lg border-2 transition-all",
-                    isStart && "border-green-200 bg-green-50/30",
-                    isEnd && "border-red-200 bg-red-50/30",
-                    isVia && "border-blue-200 bg-blue-50/30",
-                    "hover:shadow-md"
+                    "relative group rounded-lg border-2 transition-all hover:shadow-md",
+                    containerStatusClass
                   )}
                 >
                   <div className="p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <div className={cn(
                         "flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",
-                        isStart && "bg-green-500 text-white",
-                        isEnd && "bg-red-500 text-white",
-                        isVia && "bg-blue-500 text-white"
+                        iconBgClass
                       )}>
-                        {isStart ? <Play className="h-3 w-3" /> : isEnd ? <Square className="h-3 w-3" /> : index}
+                        {iconContent}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "text-xs font-semibold",
-                            isStart && "text-green-700",
-                            isEnd && "text-red-700",
-                            isVia && "text-blue-700"
-                          )}>
-                            {isStart ? 'Start' : isEnd ? 'End' : `Via ${index}`}
+                          <span className={cn("text-xs font-semibold", headerTextClass)}>
+                            {headerLabel}
                           </span>
-                          {isVia && (
+                          {!isIsoMode && isVia && (
                             <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                               Stop
                             </Badge>
                           )}
                         </div>
                       </div>
-                      {isVia && (
+                      {!isIsoMode && isVia && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -278,13 +320,13 @@ export default function Sidebar() {
                     </div>
                     <PlaceInput
                       index={index}
-                      value={place.name || ''}
+                      value={place?.name || ''}
                       onChange={(value) => handlePlaceChange(value, index)}
                       onSelect={(placeData) => handlePlaceSelect(placeData, index)}
                       onClear={() => handlePlaceClear(index)}
-                      placeholder={isStart ? 'Start location' : isEnd ? 'End location' : `Via point ${index}`}
-                      autofocus={isStart && safePlaces.length === 1}
-                      selectedPlace={place.lat != null && place.lng != null ? place : null}
+                      placeholder={placeholderText}
+                      autofocus={isIsoMode || (isStart && safePlaces.length === 1)}
+                      selectedPlace={place?.lat != null && place?.lng != null ? place : null}
                       showRemove={false}
                       onRemove={handleRemovePlace}
                       pickPlaceSupported={true}
